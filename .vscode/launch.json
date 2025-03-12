@@ -1,0 +1,34 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File with cifar",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--config", "exps/cifar.yaml"],
+            "env": { "PYTHONPATH": "/app/src" }
+        },
+        {
+            "name": "Python: Current File with imagenet-r",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--config", "exps/imagenet-r.yaml"],
+            "env": { "PYTHONPATH": "/app/src" }
+        },
+        {
+            "name": "Python: Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.scripts.${fileBasenameNoExtension}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--config", "exps/cifar.yaml"]
+        }
+    ]
+}
