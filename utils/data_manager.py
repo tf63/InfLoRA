@@ -1,14 +1,28 @@
 import logging
+
 import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from utils.data import iCIFAR100, iIMAGENET_R, iIMAGENET_A, iCUB, iDomainNet, iCIFAR10
 
+from utils.data import (
+    CUB,
+    iCIFAR10,
+    iCIFAR100,
+    iCIFAR224,
+    iImageNet100,
+    iImageNet1000,
+    iImageNetA,
+    iImageNetR,
+    objectnet,
+    omnibenchmark,
+    vtab,
+)
 
 
 class DataManager(object):
-    def __init__(self, dataset_name, shuffle, seed, init_cls, increment, args=None):
+    def __init__(self, dataset_name, shuffle, seed, init_cls, increment, data_dir, args=None):
+        self.data_dir = data_dir
         self.args = args
         self.dataset_name = dataset_name
         self._setup_data(dataset_name, shuffle, seed)
@@ -19,7 +33,6 @@ class DataManager(object):
         offset = len(self._class_order) - sum(self._increments)
         if offset > 0:
             self._increments.append(offset)
-
 
     @property
     def nb_tasks(self):
@@ -39,7 +52,7 @@ class DataManager(object):
         if mode == 'train':
             trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
         elif mode == 'flip':
-            trsf = transforms.Compose([*self._test_trsf, transforms.RandomHorizontalFlip(p=1.), *self._common_trsf])
+            trsf = transforms.Compose([*self._test_trsf, transforms.RandomHorizontalFlip(p=1.0), *self._common_trsf])
         elif mode == 'test':
             trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
 
@@ -48,7 +61,7 @@ class DataManager(object):
 
         data, targets = [], []
         for idx in indices:
-            class_data, class_targets = self._select(x, y, low_range=idx, high_range=idx+1)
+            class_data, class_targets = self._select(x, y, low_range=idx, high_range=idx + 1)
             data.append(class_data)
             targets.append(class_targets)
 
@@ -68,7 +81,7 @@ class DataManager(object):
         if mode == 'train':
             trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
         elif mode == 'flip':
-            trsf = transforms.Compose([*self._test_trsf, transforms.RandomHorizontalFlip(p=1.), *self._common_trsf])
+            trsf = transforms.Compose([*self._test_trsf, transforms.RandomHorizontalFlip(p=1.0), *self._common_trsf])
         elif mode == 'test':
             trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
         else:
@@ -105,7 +118,7 @@ class DataManager(object):
         train_data, train_targets = [], []
         val_data, val_targets = [], []
         for idx in indices:
-            class_data, class_targets = self._select(x, y, low_range=idx, high_range=idx+1)
+            class_data, class_targets = self._select(x, y, low_range=idx, high_range=idx + 1)
             val_indx = np.random.choice(len(class_data), val_samples_per_class, replace=False)
             train_indx = list(set(np.arange(len(class_data))) - set(val_indx))
             val_data.append(class_data[val_indx])
@@ -115,9 +128,10 @@ class DataManager(object):
 
         if appendent is not None:
             appendent_data, appendent_targets = appendent
-            for idx in range(0, int(np.max(appendent_targets))+1):
-                append_data, append_targets = self._select(appendent_data, appendent_targets,
-                                                           low_range=idx, high_range=idx+1)
+            for idx in range(0, int(np.max(appendent_targets)) + 1):
+                append_data, append_targets = self._select(
+                    appendent_data, appendent_targets, low_range=idx, high_range=idx + 1
+                )
                 val_indx = np.random.choice(len(append_data), val_samples_per_class, replace=False)
                 train_indx = list(set(np.arange(len(append_data))) - set(val_indx))
                 val_data.append(append_data[val_indx])
@@ -128,11 +142,12 @@ class DataManager(object):
         train_data, train_targets = np.concatenate(train_data), np.concatenate(train_targets)
         val_data, val_targets = np.concatenate(val_data), np.concatenate(val_targets)
 
-        return DummyDataset(train_data, train_targets, trsf, self.use_path), \
-            DummyDataset(val_data, val_targets, trsf, self.use_path)
+        return DummyDataset(train_data, train_targets, trsf, self.use_path), DummyDataset(
+            val_data, val_targets, trsf, self.use_path
+        )
 
     def _setup_data(self, dataset_name, shuffle, seed):
-        idata = _get_idata(dataset_name, self.args)
+        idata = _get_idata(dataset_name, self.data_dir, self.args)
         idata.download_data()
 
         # Data
@@ -189,29 +204,39 @@ def _map_new_class_index(y, order):
     return np.array(list(map(lambda x: order.index(x), y)))
 
 
-def _get_idata(dataset_name, args=None):
+def _get_idata(dataset_name, data_dir, args=None):
     name = dataset_name.lower()
-    if name == 'cifar100':
-        return iCIFAR100(args)
-    elif name == 'cifar10':
-        return iCIFAR10(args)
-    elif name == 'imagenet_r':
-        return iIMAGENET_R(args)
-    elif name == 'domainnet':
-        return iDomainNet(args)
-    elif name == 'imagenet_a':
-        return iIMAGENET_A(args)
+    if name == 'cifar10':
+        return iCIFAR10(data_dir)
+    elif name == 'cifar100':
+        return iCIFAR100(data_dir)
+    elif name == 'imagenet1000':
+        return iImageNet1000(data_dir)
+    elif name == 'imagenet100':
+        return iImageNet100(data_dir)
+    elif name == 'cifar224':
+        return iCIFAR224(args, data_dir)
+    elif name == 'imagenetr':
+        return iImageNetR(args, data_dir)
+    elif name == 'imageneta':
+        return iImageNetA(data_dir)
     elif name == 'cub':
-        return iCUB(args)
+        return CUB(data_dir)
+    elif name == 'objectnet':
+        return objectnet(data_dir)
+    elif name == 'omnibenchmark':
+        return omnibenchmark(data_dir)
+    elif name == 'vtab':
+        return vtab(data_dir)
     else:
         raise NotImplementedError('Unknown dataset {}.'.format(dataset_name))
 
 
 def pil_loader(path):
-    '''
+    """
     Ref:
     https://pytorch.org/docs/stable/_modules/torchvision/datasets/folder.html#ImageFolder
-    '''
+    """
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
     with open(path, 'rb') as f:
         img = Image.open(f)
@@ -219,13 +244,14 @@ def pil_loader(path):
 
 
 def accimage_loader(path):
-    '''
+    """
     Ref:
     https://pytorch.org/docs/stable/_modules/torchvision/datasets/folder.html#ImageFolder
     accimage is an accelerated Image loader and preprocessor leveraging Intel IPP.
     accimage is available on conda-forge.
-    '''
+    """
     import accimage
+
     try:
         return accimage.Image(path)
     except IOError:
@@ -234,11 +260,12 @@ def accimage_loader(path):
 
 
 def default_loader(path):
-    '''
+    """
     Ref:
     https://pytorch.org/docs/stable/_modules/torchvision/datasets/folder.html#ImageFolder
-    '''
+    """
     from torchvision import get_image_backend
+
     if get_image_backend() == 'accimage':
         return accimage_loader(path)
     else:
